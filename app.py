@@ -13,53 +13,55 @@ st.set_page_config(layout="wide", initial_sidebar_state="expanded")
 # ==========================================
 dark_mode = st.sidebar.toggle("🌙 다크 모드 (Dark Mode)", value=False)
 
-# 프롬프트 결과창을 시각적으로 완전히 분리하는 커스텀 CSS
+# ★주의: 마크다운 텍스트로 인식되지 않도록 <style> 태그를 왼쪽 끝으로 밀착시켰습니다.
 custom_css = """
 <style>
-    /* 프롬프트 결과 박스 스타일 (시인성 강화) */
-    .prompt-box {
-        background-color: #2b303b;
-        color: #a3be8c;
-        padding: 20px;
-        border-radius: 8px;
-        border-left: 5px solid #ebcb8b;
-        font-family: 'Courier New', monospace;
-        font-size: 14px;
-        line-height: 1.6;
-        margin-top: 15px;
-        margin-bottom: 15px;
-        white-space: pre-wrap;
-    }
+/* 프롬프트 결과 박스 스타일 (시인성 강화) */
+.prompt-box {
+    background-color: #2b303b;
+    color: #a3be8c;
+    padding: 20px;
+    border-radius: 8px;
+    border-left: 5px solid #ebcb8b;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    margin-top: 15px;
+    margin-bottom: 15px;
+    white-space: pre-wrap;
+}
 </style>
 """
 
 if dark_mode:
     custom_css += """
-    <style>
-        /* 제미나이 스타일의 완전 어두운 다크모드 강제 적용 */
-        [data-testid="stAppViewContainer"] { background-color: #131314 !important; }
-        [data-testid="stSidebar"] { background-color: #1e1e1f !important; }
-        [data-testid="stHeader"] { background-color: transparent !important; }
-        
-        /* 전체 텍스트 색상 밝게 변경 */
-        .stMarkdown, .stText, h1, h2, h3, h4, h5, h6, p, label, span { color: #E3E3E3 !important; }
-        
-        /* 입력창, 선택창 배경 어둡게 */
-        .stTextArea textarea, .stTextInput input, div[data-baseweb="select"] > div { 
-            background-color: #282a2d !important; 
-            color: #FFFFFF !important; 
-            border-color: #444 !important;
-        }
-        
-        /* 파일 업로드 영역 어둡게 */
-        [data-testid="stFileUploadDropzone"] { background-color: #1e1e1f !important; }
-    </style>
-    """
+<style>
+/* 제미나이 스타일의 완전 어두운 다크모드 강제 적용 */
+[data-testid="stAppViewContainer"] { background-color: #131314 !important; }
+[data-testid="stSidebar"] { background-color: #1e1e1f !important; }
+[data-testid="stHeader"] { background-color: transparent !important; }
 
-# ★ 이 부분이 있어야 코드가 화면에 글씨로 출력되지 않습니다 ★
+/* 전체 텍스트 색상 밝게 변경 */
+.stMarkdown, .stText, h1, h2, h3, h4, h5, h6, p, label, span { color: #E3E3E3 !important; }
+
+/* 입력창, 선택창 배경 어둡게 */
+.stTextArea textarea, .stTextInput input, div[data-baseweb="select"] > div { 
+    background-color: #282a2d !important; 
+    color: #FFFFFF !important; 
+    border-color: #444 !important;
+}
+
+/* 파일 업로드 영역 어둡게 */
+[data-testid="stFileUploadDropzone"] { background-color: #1e1e1f !important; }
+</style>
+"""
+
 st.markdown(custom_css, unsafe_allow_html=True)
 
 st.title("🎯 AI 광고 배너 크리에이티브 분석 보드 (V7)")
+
+# ==========================================
+# (이하 1번 사이드바 설정 코드부터 그대로 유지...)
 
 # ==========================================
 # 1. 사이드바 설정 및 메모리 초기화
