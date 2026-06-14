@@ -16,19 +16,20 @@ dark_mode = st.sidebar.toggle("🌙 다크 모드 (Dark Mode)", value=False)
 # ★주의: 마크다운 텍스트로 인식되지 않도록 <style> 태그를 왼쪽 끝으로 밀착시켰습니다.
 custom_css = """
 <style>
-/* 프롬프트 결과 박스 스타일 (시인성 강화) */
-.prompt-box {
-    background-color: #2b303b;
-    color: #a3be8c;
-    padding: 20px;
-    border-radius: 8px;
-    border-left: 5px solid #ebcb8b;
-    font-family: 'Courier New', monospace;
-    font-size: 14px;
-    line-height: 1.6;
+/* 프롬프트 결과 박스 스타일 (시인성 강화 + 기본 복사 버튼 호환) */
+[data-testid="stCodeBlock"] {
+    background-color: #2b303b !important;
+    border-left: 5px solid #ebcb8b !important;
+    border-radius: 8px !important;
     margin-top: 15px;
     margin-bottom: 15px;
-    white-space: pre-wrap;
+}
+[data-testid="stCodeBlock"] pre {
+    color: #a3be8c !important;
+    font-family: 'Courier New', monospace !important;
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+    white-space: pre-wrap !important;
 }
 </style>
 """
@@ -59,9 +60,6 @@ if dark_mode:
 st.markdown(custom_css, unsafe_allow_html=True)
 
 st.title("🎯 AI 광고 배너 크리에이티브 분석 보드 (V7)")
-
-# ==========================================
-# (이하 1번 사이드바 설정 코드부터 그대로 유지...)
 
 # ==========================================
 # 1. 사이드바 설정 및 메모리 초기화
@@ -99,7 +97,7 @@ if analysis_direction == "완전히 새로운 시도":
 additional_context = st.sidebar.text_area("🤖 추가 강조 지시사항 (선택)", placeholder="예: 이번엔 카피를 최대한 줄여줘.")
 
 # ==========================================
-# 2. 데이터 처리 및 상위 배너 추출 (요구사항 4 반영)
+# 2. 데이터 처리 및 상위 배너 추출
 # ==========================================
 uploaded_file = st.file_uploader("BI 보드 CSV 파일을 업로드하세요", type=["csv"])
 
@@ -107,17 +105,14 @@ if uploaded_file and api_key:
     client = genai.Client(api_key=api_key)
     raw_df = pd.read_csv(uploaded_file)
     
-    # [요구사항 4] 완전히 같은 디자인(url)이되, 해외(language)는 다르게 분리하여 그룹화
     group_cols = ['url', 'language'] if 'language' in raw_df.columns else ['url']
     
-    # 중복 이미지 합산 (CV는 더하고, ROAS는 평균)
     df = raw_df.groupby(group_cols, as_index=False).agg({
         'first_pay_cv': 'sum',
         'roas': 'mean',
         'name': 'first'
     })
     
-    # 첫결제 기준 내림차순 정렬
     df_sorted = df.sort_values(by=['first_pay_cv', 'roas'], ascending=[False, False]).reset_index(drop=True)
     top_n = min(4, len(df_sorted))
     top_banners = df_sorted.head(top_n)
@@ -141,7 +136,6 @@ if uploaded_file and api_key:
                 if img:
                     st.image(img, use_container_width=True)
                     valid_imgs.append(img)
-                # 언어/국가 표시 추가
                 lang_str = f" | 국가: {row.language}" if 'language' in df.columns else ""
                 st.caption(f"**TOP {i+1}**{lang_str}\n\nCV 합계: {row.first_pay_cv} | ROAS: {row.roas:.2f}")
 
@@ -149,7 +143,7 @@ if uploaded_file and api_key:
         banner_data_summary = "\n".join([f"- TOP {idx+1}: CV {row.first_pay_cv}건, ROAS {row.roas:.2f} (언어: {row.language if 'language' in df.columns else '알수없음'})" for idx, row in enumerate(top_banners.itertuples())])
         
         # ==========================================
-        # 3. 분석 실행 버튼 (요구사항 5, 6, 7 반영)
+        # 3. 분석 실행 버튼
         # ==========================================
         st.markdown("---")
         if st.button("🚀 AI 피드백 분석 실행 (설정이 바뀌면 다시 누르세요)", use_container_width=True):
@@ -170,7 +164,7 @@ if uploaded_file and api_key:
             3. [해외 소재 대응]: 만약 분석하는 배너가 한국(ko) 외의 해외 소재(언어)라면, 언어적 카피(텍스트) 분석은 최소화하고 '시각적 디자인(그래픽, 오브젝트 배치, 색감, 이펙트)' 위주로 피드백을 작성해라.
             
             [출력 포맷 필수 규칙]
-            반드시 각 배너의 피드백 시작 부분에 '===TOP 1===', '===TOP 2===' 와 같이 명확한 구분자를 넣어서 출력해라. 
+            반드시 각 배너의 피드백 시작 부분에 '===TOP 1===' '===TOP 2===' 와 같이 명확한 구분자를 넣어서 출력해라. 
             서론이나 결론 없이 바로 구분자로 시작해라.
             """
             
@@ -195,7 +189,6 @@ if uploaded_file and api_key:
             st.markdown("---")
             st.subheader("🤖 배너별 상세 피드백 및 시안 프롬프트")
             
-            # [요구사항 1] st.fragment를 사용하여 이 함수 내의 버튼 클릭 시 화면 전체가 불투명해지는 것을 막음
             @st.fragment
             def prompt_generator_fragment(i, feedback, valid_img):
                 if st.button(f"🎨 TOP {i+1} 맞춤 러프 프롬프트 생성", key=f"btn_prompt_{i}"):
@@ -213,21 +206,18 @@ if uploaded_file and api_key:
                                 model='gemini-2.5-flash', 
                                 contents=[valid_img, prompt_query]
                             )
-                            # [요구사항 2] 커스텀 CSS를 적용한 세련된 결과 박스 렌더링
-                            st.markdown(f'<div class="prompt-box">{gen_prompt_res.text}</div>', unsafe_allow_html=True)
+                            # st.code를 사용하여 시인성 유지 및 우측 상단 복사 기능 적용
+                            st.code(gen_prompt_res.text, language="plaintext")
                         except Exception as e:
                             st.error(f"프롬프트 생성 중 오류 발생: {e}")
 
-            # 피드백 리스트 출력 및 fragment 함수 호출
             for i, feedback in enumerate(st.session_state.feedbacks):
                 st.markdown(f"### 🥇 TOP {i+1} 개선 가이드")
                 st.markdown(feedback)
                 
-                # 버튼과 프롬프트 생성 과정을 격리된 Fragment로 실행
                 if i < len(valid_imgs):
                     prompt_generator_fragment(i, feedback, valid_imgs[i])
                 
                 st.markdown("---")
-
     else:
         st.error("CSV 내에서 이미지를 가져오지 못했습니다.")
