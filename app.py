@@ -59,7 +59,7 @@ if dark_mode:
 
 st.markdown(custom_css, unsafe_allow_html=True)
 
-st.title("🎯 BI 보드 분석 (V7)")
+st.title("🎯 BI 보드 분석 툴 (V7)")
 
 # ==========================================
 # 1. 사이드바 설정 및 메모리 초기화
