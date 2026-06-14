@@ -59,7 +59,7 @@ if dark_mode:
 
 st.markdown(custom_css, unsafe_allow_html=True)
 
-st.title("🎯 AI 광고 배너 크리에이티브 분석 보드 (V7)")
+st.title("🎯 BI 보드 분석 (V7)")
 
 # ==========================================
 # 1. 사이드바 설정 및 메모리 초기화
@@ -200,7 +200,7 @@ if uploaded_file and api_key:
                     [규칙]: 1:1 ratio. 텍스트 영역은 'Korean text typography' 명시. 부가 설명 없이 프롬프트만 출력.
                     """
                     
-                    with st.spinner("프롬프트 추출 중... (다른 피드백을 읽으셔도 됩니다)"):
+                    with st.spinner("프롬프트 추출 중..."):
                         try:
                             gen_prompt_res = client.models.generate_content(
                                 model='gemini-2.5-flash', 
