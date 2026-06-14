@@ -1,12 +1,13 @@
 import streamlit as st
 import pandas as pd
 import requests
+import re
 from io import BytesIO
 from PIL import Image
 from google import genai
 
 st.set_page_config(layout="wide")
-st.title("🎯 AI 광고 배너 크리에이티브 분석 보드 (V4)")
+st.title("🎯 AI 광고 배너 크리에이티브 분석 보드 (V5)")
 
 # ==========================================
 # 1. 사이드바 설정
@@ -24,13 +25,11 @@ ip_style = st.sidebar.selectbox(
 if ip_style == "직접 입력":
     ip_style = st.sidebar.text_input("IP 분위기를 직접 입력하세요", "예: SF 메카닉 일러스트 기반")
 
-# 방향성 선택지로 변경
 analysis_direction = st.sidebar.radio(
     "🧭 피드백 집중 방향성 선택", 
     ["BI보드 데이터 기반", "완전히 새로운 시도"]
 )
 
-# 새로운 시도 선택 시에만 활성화되는 구체적 힌트 창
 specific_hint = ""
 if analysis_direction == "완전히 새로운 시도":
     specific_hint = st.sidebar.text_input(
@@ -50,10 +49,7 @@ if uploaded_file and api_key:
     df = pd.read_csv(uploaded_file)
     st.success("데이터 로드 완료!")
     
-    # 첫결제(first_pay_cv) 최우선 정렬, 동률시 ROAS 정렬
     df_sorted = df.sort_values(by=['first_pay_cv', 'roas'], ascending=[False, False]).reset_index(drop=True)
-    
-    # 상위 4개 배너 추출
     top_n = min(4, len(df_sorted))
     top_banners = df_sorted.head(top_n)
     
@@ -81,22 +77,20 @@ if uploaded_file and api_key:
         banner_data_summary = "\n".join([f"- TOP {idx+1}: 첫결제 {row.first_pay_cv}건, ROAS {row.roas}" for idx, row in enumerate(top_banners.itertuples())])
         
         # ==========================================
-        # 3. 방향성에 맞춘 고도화된 프롬프트 조립
+        # 3. 분석용 프롬프트 조립 (구분자 강제 삽입)
         # ==========================================
         if analysis_direction == "BI보드 데이터 기반":
             direction_prompt = """
             [BI보드 데이터 기반 분석 지침]
-            - 상위 배너들의 시각적 공통점과 핵심 성공 인자(예: 로우앵글 구도, 보일듯 말듯한 신비로운 분위기, 특정 색감 등)를 명확히 짚어낼 것.
-            - "가독성을 높이세요" 같은 당연한 말은 제외하고 구체적이고 실질적인 가이드를 제공할 것.
-            - 분석을 토대로 '이러이러하기 때문에 이렇게 수정하라'는 명확한 인과관계를 설명할 것.
+            - 상위 배너들의 시각적 공통점과 핵심 성공 인자(예: 로우앵글 구도, 신비로운 분위기, 특정 색감 등)를 명확히 짚어낼 것.
+            - "가독성을 높이세요" 같은 당연한 말은 제외하고 '왜 이런 수정을 해야하는지' 구체적이고 실질적인 가이드를 제공할 것.
             - 기존 카피를 퍼포먼스 마케팅 시점에 맞춰 더 강렬하게 리라이팅하고, 강조할 폰트 스타일과 크기를 구체적으로 지적할 것.
             """
         else:
             direction_prompt = f"""
             [완전히 새로운 시도 분석 지침]
-            - 과거 데이터에 얽매이지 말고, 마케팅 트렌드에 맞춘 파격적인 1:1 배너 기획을 제안할 것.
-            - 제공된 키워드({specific_hint if specific_hint else '최신 유행 밈, 타사 벤치마킹 스타일, 계절/명절 이벤트'})를 활용할 것.
-            - 예: "여름 시즌에 맞춰 청량한 색감을 쓰고 비키니 일러스트 톤을 강조", "추석 연휴를 타겟으로 텍스트를 빼고 캐릭터 표정만 강조" 등 구체적이고 근거 있는 제안을 할 것.
+            - 과거 데이터에 얽매이지 말고, 제공된 키워드({specific_hint if specific_hint else '최신 유행 밈, 타사 벤치마킹 스타일, 계절/명절 이벤트'})를 활용해 파격적인 기획을 제안할 것.
+            - 예: "여름 시즌에 맞춰 청량한 색감을 쓰고 비키니 일러스트 톤을 강조" 등 구체적이고 근거 있는 제안을 할 것.
             """
 
         system_prompt = f"""
@@ -108,54 +102,64 @@ if uploaded_file and api_key:
         - 추가 지시사항: {additional_context}
         - 데이터 요약: {banner_data_summary}
         
-        [필수 규칙]
-        1. 인물 일러스트는 교체 불가(밝기만 조절 가능). 구도, 배경, 텍스트, 색감 등의 변형으로만 해결책을 제시할 것.
-        2. 모든 디자인 가이드는 '1:1 정방형 사이즈'를 기준으로 할 것.
+        [출력 포맷 필수 규칙 - 시스템 파싱용]
+        반드시 각 배너의 피드백 시작 부분에 '===TOP 1===', '===TOP 2===' 와 같이 명확한 구분자를 넣어서 출력해라. 
+        서론이나 결론 없이 바로 ===TOP 1=== 구분자로 시작해라.
         
         {direction_prompt}
         """
         
+        # 전체 배너 분석 실행
         with st.spinner("배너 크리에이티브를 정밀 분석 중..."):
             response = client.models.generate_content(
                 model='gemini-2.5-flash',
                 contents=valid_imgs + [system_prompt]
             )
             
+            # 정규표현식으로 ===TOP N=== 기준으로 텍스트 분리
+            raw_text = response.text
+            feedbacks = re.split(r'===TOP \d+===', raw_text)
+            feedbacks = [f.strip() for f in feedbacks if f.strip()] # 빈 공백 필터링
+            
             st.markdown("---")
-            st.subheader(f"🤖 크리에이티브 분석 보고서 ({analysis_direction})")
-            st.markdown(response.text)
+            st.subheader(f"🤖 배너별 상세 피드백 및 시안 프롬프트 ({analysis_direction})")
             
             # ==========================================
-            # 4. 배너별 피드백 반영 맞춤 러프 프롬프트 생성 (복사 버튼 포함)
+            # 4. 피드백 렌더링 및 개별 프롬프트 생성 버튼
             # ==========================================
-            st.markdown("---")
-            st.subheader("🎨 배너별 개선 시안 프롬프트")
-            st.info("분석된 피드백(구도, 색감, 텍스트 위치 등)을 시각화할 수 있는 1:1 배너 맞춤형 프롬프트입니다. 우측 상단의 '복사' 버튼을 눌러 이미지 생성 AI에 붙여넣으세요.")
-            
-            prompt_query = f"""
-            앞서 분석한 [배너별 개선 가이드라인]의 시각적 요소를 그대로 구현하는 '광고 배너 레이아웃 스케치'용 영문 프롬프트를 배너 개수만큼 각각 작성해.
-            
-            [프롬프트 작성 필수 규칙]
-            1. 분석 결과에서 제안한 구도, 텍스트 위치, 배경 느낌, 오브젝트 배치를 이미지 생성 AI가 정확히 그릴 수 있게 구체적인 시각 묘사로 변환할 것.
-               (예: "A 1:1 rough layout sketch of an ad banner. Character placed on the bottom right. Dark neon background. Top left has a Korean text placeholder...")
-            2. 반드시 배너 1개당 1~2줄의 영문 프롬프트로 완성할 것.
-            3. 원본 배너 인물의 포즈를 그대로 유지하라는 지시("keeping the character's original pose")를 포함할 것.
-            4. 텍스트 요소에는 'Korean text (Hangul typography)'를 적용하라고 명시할 것.
-            
-            [출력 포맷]
-            사용자가 쉽게 복사할 수 있도록 반드시 아래 마크다운 형식(코드 블록)으로만 출력할 것.
-            
-            ### [배너명] 개선 프롬프트
-            ```text
-            (여기에 피드백 내용이 반영된 영문 프롬프트 작성)
-            ```
-            """
-            
-            with st.spinner("피드백이 반영된 시각화 프롬프트 추출 중..."):
-                gen_prompt_res = client.models.generate_content(model='gemini-2.5-flash', contents=prompt_query)
-                st.markdown(gen_prompt_res.text)
+            for i, feedback in enumerate(feedbacks):
+                # UI 레이아웃 분리
+                st.markdown(f"### 🥇 TOP {i+1} 개선 가이드")
+                st.markdown(feedback)
+                
+                # 버튼 고유 키값(key)을 부여하여 개별 작동하도록 설계
+                if st.button(f"🎨 TOP {i+1} 시안 러프 프롬프트 생성", key=f"btn_prompt_{i}"):
+                    
+                    # 해당 피드백 내용만 콕 집어서 프롬프트 추출 지시
+                    prompt_query = f"""
+                    다음 피드백 내용을 토대로, 이 배너의 개선 시안을 시각화할 수 있는 '광고 배너 레이아웃 스케치'용 영문 프롬프트를 작성해.
+                    
+                    [피드백 내용]
+                    {feedback}
+                    
+                    [프롬프트 작성 필수 규칙]
+                    1. 위 피드백에서 제안한 구도, 텍스트 위치, 배경 느낌을 이미지 생성 AI가 정확히 그릴 수 있게 1:1 비율(1:1 ratio)의 구체적인 시각 묘사로 변환할 것.
+                    2. 반드시 1~2줄의 영문 프롬프트로 완성할 것.
+                    3. 원본 배너 인물의 포즈를 그대로 유지하라는 지시("keeping the character's original pose")를 포함할 것.
+                    4. 텍스트 요소에는 'Korean text (Hangul typography)'를 적용하라고 명시할 것.
+                    
+                    [출력 포맷]
+                    사용자가 복사하기 쉽도록 반드시 아래 마크다운 형식(코드 블록)으로만 출력할 것. 다른 설명은 절대 금지.
+                    ```text
+                    (여기에 영문 프롬프트 작성)
+                    ```
+                    """
+                    
+                    with st.spinner(f"TOP {i+1} 맞춤형 프롬프트 추출 중..."):
+                        gen_prompt_res = client.models.generate_content(model='gemini-2.5-flash', contents=prompt_query)
+                        st.markdown(gen_prompt_res.text)
+                
+                st.markdown("---") # 배너 간 구분선
+                
     else:
         st.error("CSV 내에서 이미지를 가져오지 못했습니다.")
-
-
-
