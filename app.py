@@ -6,41 +6,54 @@ from PIL import Image
 from google import genai
 
 st.set_page_config(layout="wide")
-st.title("🎯 AI 광고 배너 크리에이티브 분석 보드 (V3)")
+st.title("🎯 AI 광고 배너 크리에이티브 분석 보드 (V4)")
 
 # ==========================================
-# 1. 사이드바 설정 (인증 및 유저 커스텀 기능)
+# 1. 사이드바 설정
 # ==========================================
 st.sidebar.header("🔑 인증 및 기본 설정")
 api_key = st.sidebar.text_input("Gemini API Key를 입력하세요", type="password")
 
 st.sidebar.markdown("---")
-st.sidebar.header("⚙️ 분석 프롬프트 세부 설정")
+st.sidebar.header("⚙️ 분석 세부 설정")
 
 ip_style = st.sidebar.selectbox(
-    "분석할 게임 IP의 주요 분위기",
+    "게임 IP의 주요 분위기",
     ["원작 충실형 (다크 판타지/라이트노벨)", "캐주얼/귀여움", "수집형 RPG/화려함", "직접 입력"]
 )
 if ip_style == "직접 입력":
     ip_style = st.sidebar.text_input("IP 분위기를 직접 입력하세요", "예: SF 메카닉 일러스트 기반")
 
-trend_keyword = st.sidebar.text_input("현재 유행하는 밈 또는 계절성 키워드", "예: 무더운 여름 시원한 보상, 한국 유행 밈")
+# 방향성 선택지로 변경
+analysis_direction = st.sidebar.radio(
+    "🧭 피드백 집중 방향성 선택", 
+    ["BI보드 데이터 기반", "완전히 새로운 시도"]
+)
+
+# 새로운 시도 선택 시에만 활성화되는 구체적 힌트 창
+specific_hint = ""
+if analysis_direction == "완전히 새로운 시도":
+    specific_hint = st.sidebar.text_input(
+        "🎯 타겟 시즌/이벤트/밈 (선택 입력)", 
+        placeholder="예: 여름 비키니, 추석/설날 연휴, 최신 유행 밈"
+    )
+
 additional_context = st.sidebar.text_area("🤖 추가 강조 지시사항 (선택)", placeholder="예: 이번엔 카피를 최대한 줄여줘.")
 
 # ==========================================
-# 2. 파일 업로드 및 데이터 처리 (성과 기준 고도화)
+# 2. 데이터 처리 및 상위 배너 추출
 # ==========================================
-uploaded_file = st.file_uploader("BI 보드에서 다운받은 CSV 파일을 업로드하세요", type=["csv"])
+uploaded_file = st.file_uploader("BI 보드 CSV 파일을 업로드하세요", type=["csv"])
 
 if uploaded_file and api_key:
     client = genai.Client(api_key=api_key)
     df = pd.read_csv(uploaded_file)
     st.success("데이터 로드 완료!")
     
-    # [요구사항 4] first_pay_cv(첫결제 건수)를 최우선 기준으로 정렬 (동률일 경우 roas 정렬)
+    # 첫결제(first_pay_cv) 최우선 정렬, 동률시 ROAS 정렬
     df_sorted = df.sort_values(by=['first_pay_cv', 'roas'], ascending=[False, False]).reset_index(drop=True)
     
-    # [요구사항 3] 상위 3~4개 배너만 추천 화면에 노출
+    # 상위 4개 배너 추출
     top_n = min(4, len(df_sorted))
     top_banners = df_sorted.head(top_n)
     
@@ -51,101 +64,85 @@ if uploaded_file and api_key:
         except:
             return None
 
-    # 상위 배너 가로 정렬 출력
-    st.subheader(f"🏆 현재 성과 최상위 TOP {top_n} 배너 추천")
+    st.subheader(f"🏆 성과 최상위 TOP {top_n} 배너 (첫결제 건수 우선)")
     cols = st.columns(top_n)
     valid_imgs = []
     
-    with st.spinner("상위 배너 이미지를 불러오는 중..."):
+    with st.spinner("이미지를 불러오는 중..."):
         for i, row in enumerate(top_banners.itertuples()):
             img = download_image(row.url)
             with cols[i]:
                 if img:
                     st.image(img, use_container_width=True)
                     valid_imgs.append(img)
-                st.caption(f"**🥇 TOP {i+1}**\n\n이름: {row.name}\n\n첫결제(CV): {row.first_pay_cv}건 | ROAS: {row.roas}")
+                st.caption(f"**TOP {i+1}** | 첫결제: {row.first_pay_cv} | ROAS: {row.roas}")
 
     if valid_imgs:
-        # ==========================================
-        # 3. [요구사항 1,2,5] 속도 및 가독성 최적화 프롬프트
-        # ==========================================
-        banner_data_summary = "\n".join([f"- TOP {idx+1}: {row.name} (첫결제: {row.first_pay_cv}건, ROAS: {row.roas})" for idx, row in enumerate(top_banners.itertuples())])
+        banner_data_summary = "\n".join([f"- TOP {idx+1}: 첫결제 {row.first_pay_cv}건, ROAS {row.roas}" for idx, row in enumerate(top_banners.itertuples())])
         
-        prompt = f"""
-        너는 퍼포먼스 마케팅 배너 분석가이자 크리에이티브 디렉터야.
-        첨부된 상위 성과 배너 이미지들을 시각적으로 분석하고, 아래 데이터를 기반으로 피드백해줘.
-        불필요한 미사여구나 서론은 생략하고, 디자이너가 바로 읽고 적용할 수 있게 '핵심만 짧고 간결하게' 작성해줘.
+        # ==========================================
+        # 3. 방향성에 맞춘 고도화된 프롬프트 조립
+        # ==========================================
+        if analysis_direction == "BI보드 데이터 기반":
+            direction_prompt = """
+            [BI보드 데이터 기반 분석 지침]
+            - 상위 배너들의 시각적 공통점과 핵심 성공 인자(예: 로우앵글 구도, 보일듯 말듯한 신비로운 분위기, 특정 색감 등)를 명확히 짚어낼 것.
+            - "가독성을 높이세요" 같은 당연한 말은 제외하고 구체적이고 실질적인 가이드를 제공할 것.
+            - 분석을 토대로 '이러이러하기 때문에 이렇게 수정하라'는 명확한 인과관계를 설명할 것.
+            - 기존 카피를 퍼포먼스 마케팅 시점에 맞춰 더 강렬하게 리라이팅하고, 강조할 폰트 스타일과 크기를 구체적으로 지적할 것.
+            """
+        else:
+            direction_prompt = f"""
+            [완전히 새로운 시도 분석 지침]
+            - 과거 데이터에 얽매이지 말고, 마케팅 트렌드에 맞춘 파격적인 1:1 배너 기획을 제안할 것.
+            - 제공된 키워드({specific_hint if specific_hint else '최신 유행 밈, 타사 벤치마킹 스타일, 계절/명절 이벤트'})를 활용할 것.
+            - 예: "여름 시즌에 맞춰 청량한 색감을 쓰고 비키니 일러스트 톤을 강조", "추석 연휴를 타겟으로 텍스트를 빼고 캐릭터 표정만 강조" 등 구체적이고 근거 있는 제안을 할 것.
+            """
+
+        system_prompt = f"""
+        너는 퍼포먼스 마케팅 크리에이티브 디렉터다. 첨부된 상위 배너들을 분석하고 짧고 명확한 개조식으로 피드백해라.
         
-        [환경 정보]
+        [환경 설정]
         - IP 특징: {ip_style}
-        - 트렌드 키워드: {trend_keyword}
-        - 추가 요청사항: {additional_context}
+        - 피드백 방향성: {analysis_direction}
+        - 추가 지시사항: {additional_context}
+        - 데이터 요약: {banner_data_summary}
         
-        [추천 배너 데이터]
-        {banner_data_summary}
+        [필수 규칙]
+        1. 인물 일러스트는 교체 불가(밝기만 조절 가능). 구도, 배경, 텍스트, 색감 등의 변형으로만 해결책을 제시할 것.
+        2. 모든 디자인 가이드는 '1:1 정방형 사이즈'를 기준으로 할 것.
         
-        [필수 가이드라인]
-        1. [인물 일러스트 고정]: 인물 일러스트 자체 변경은 불가능함(밝기 조절만 가능). '배경, 구도, 레이아웃, 텍스트 디자인 및 위치'를 변경하여 다른 분위기를 만드는 방향으로만 제안할 것.
-        2. [광고 문구 전략]: 카피 삽입을 추천한다면 뭘 넣을지 예시와 이유를 제안하고, 텍스트가 없는 배너가 성과가 좋다면 무리하게 넣지 말고 로고와 분위기 연출법 위주의 대체 제안을 줄 것.
-        3. [1:1 규격 고정]: 모든 레이아웃 가이드 및 디자인 제안은 1:1 정방형 사이즈를 기준으로 작성할 것.
-        
-        [출력 포맷 - 짧고 간결한 개조식 문장으로 작성]
-        ■ 1. 상위 배너 성공 요인 요약 (2~3줄 요약)
-        ■ 2. 미조정 배너안 (기존 데이터 기반으로 레이아웃/색감만 미세하게 조정하여 디자이너가 바로 변형할 수 있는 시안 가이드)
-        ■ 3. 완전히 새로운 시도 (트렌드/밈/계절성 키워드({trend_keyword})를 반영하여 1:1 사이즈로 과감하게 시도해볼 새로운 관점의 배너 기획안)
+        {direction_prompt}
         """
         
-        with st.spinner("제미나이가 상위 배너들을 시각 분석하는 중입니다..."):
+        with st.spinner("배너 크리에이티브를 정밀 분석 중..."):
             response = client.models.generate_content(
                 model='gemini-2.5-flash',
-                contents=valid_imgs + [prompt]
+                contents=valid_imgs + [system_prompt]
             )
             
             st.markdown("---")
-            st.subheader("🤖 제미나이 크리에이티브 시각 분석 보고서")
+            st.subheader(f"🤖 크리에이티브 분석 보고서 ({analysis_direction})")
             st.markdown(response.text)
             
-           # ==========================================
-            # 4. [요구사항 6,7] 이미지 생성 에러 완벽 해결 및 플랜 B 탑재
+            # ==========================================
+            # 4. 러프 스케치 프롬프트 추출 기능 (에러 방지)
             # ==========================================
             st.markdown("---")
-            st.subheader("🎨 디자이너 전달용 레이아웃 스케치 생성")
-            st.info("위 분석 결과를 바탕으로 인물, 로고, 텍스트의 배치 위치만 대략적으로 보여주는 1:1 러프 와이어프레임 스케치를 생성합니다.")
+            st.subheader("📋 이미지 생성기용 1:1 러프 프롬프트 추출")
+            st.info("아래 영문 텍스트를 복사하여 사용 중인 AI(Gemini, ChatGPT 등)에 붙여넣으면, 퀄리티보다는 레이아웃과 분위기 파악에 특화된 1:1 와이어프레임 이미지가 생성됩니다.")
             
-            if st.button("🖼️ 러프 스케치 이미지 생성하기 (최저용량/고속)"):
-                with st.spinner("Imagen 모델이 레이아웃 스케치를 그리는 중..."):
-                    try:
-                        # [조치 1] 안전 필터 우회를 위해 게임 요소를 완전히 배제한 추상적 디자인 프롬프트 강제 고정
-                        clean_prompt = (
-                            "A rough abstract minimalist wireframe schematic layout sketch for a 1:1 advertisement banner. "
-                            "Flat design, simple gray and white geometric shapes. "
-                            "Clearly show square placeholders labeled 'TEXT AREA', 'LOGO', and 'CHARACTER BACKGROUND'."
-                        )
-                        
-                        # Imagen 호출
-                        result = client.models.generate_images(
-                            model='imagen-3.0-generate-002',
-                            prompt=clean_prompt,
-                            config=dict(
-                                number_of_images=1,
-                                aspect_ratio="1:1",
-                                output_mime_type="image/jpeg"
-                            )
-                        )
-                        generated_image = Image.open(BytesIO(result.generated_images[0].image.image_bytes))
-                        st.image(generated_image, caption="디자이너 참고용 러프 레이아웃 가이드 (1:1 프로토타입)", width=500)
-                        
-                    except Exception as e:
-                        # [조치 2] API 키 권한 부족으로 실패 시, 사이트가 멈추지 않고 텍스트 레이아웃 구조도로 즉시 전환
-                        st.warning("⚠️ 현재 구글 API 키의 권한 제한으로 인해 이미지 생성이 차단되었습니다. 대신 디자이너용 '텍스트 배치 구조도'를 제공합니다.")
-                        
-                        fallback_query = f"""
-                        다음 분석 내용을 바탕으로, 디자이너가 구도를 한눈에 볼 수 있게 
-                        1:1 배너 영역 안에서 [좌측 상단], [우측], [하단] 등 구역별로 인물/로고/텍스트를 어떻게 배치해야 하는지 
-                        기호(■, □, ──)나 표 형태의 간단한 텍스트 구조도로 시각화해서 그려줘.
-                        분석 내용: {response.text}
-                        """
-                        fallback_res = client.models.generate_content(model='gemini-2.5-flash', contents=fallback_query)
-                        
-                        st.markdown("### 🗺️ 대체 레이아웃 구조도 가이드")
-                        st.code(fallback_res.text, language="text")
+            prompt_query = (
+                f"Based on this analysis:\n{response.text}\n\n"
+                "Write a ONE-LINE pure English prompt to generate a 1:1 ratio rough wireframe layout sketch for this banner. "
+                "Do NOT make it hyper-realistic. Focus ONLY on the rapid visualization of character placement, text boxes, logo position, and overall color mood. "
+                "Output ONLY the English prompt string without any markdown or conversational text."
+            )
+            
+            with st.spinner("초고속 생성용 프롬프트 추출 중..."):
+                gen_prompt_res = client.models.generate_content(model='gemini-2.5-flash', contents=prompt_query)
+                clean_ai_prompt = gen_prompt_res.text.strip().replace("`", "").replace('"', '')
+                
+                st.text_area("▼ 1:1 레이아웃 프롬프트 복사", value=clean_ai_prompt, height=100)
+    else:
+        st.error("CSV 내에서 이미지를 가져오지 못했습니다.")
