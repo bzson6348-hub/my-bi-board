@@ -125,30 +125,35 @@ if uploaded_file and api_key:
             st.subheader(f"🤖 크리에이티브 분석 보고서 ({analysis_direction})")
             st.markdown(response.text)
             
-           # ==========================================
-            # 4. 러프 프롬프트 생성
+# ==========================================
+            # 4. 배너별 맞춤 러프 프롬프트 생성 (복사 버튼 포함)
             # ==========================================
             st.markdown("---")
-            st.subheader("🎨 러프 프롬프트 생성")
-            st.info("아래 3가지 패턴의 영문 프롬프트 중 하나를 복사하여 이미지 생성 AI에 붙여넣으세요. 원본 인물의 포즈를 유지하면서 한글 타이포그래피가 적용된 1:1 구도 이미지를 생성합니다.")
+            st.subheader("🎨 배너별 개선 러프 프롬프트")
+            st.info("분석된 피드백(구도, 색감, 텍스트 위치 등)이 각각 반영된 배너별 1:1 맞춤형 프롬프트입니다. 우측 상단의 '복사' 버튼을 눌러 이미지 생성 AI에 붙여넣으세요.")
             
-            prompt_query = (
-                f"Based on this analysis:\n{response.text}\n\n"
-                "Write 3 different ONE-LINE English prompts to generate a 1:1 ratio rough layout sketch for this banner. "
-                "CRITICAL RULES: "
-                "1. The character's POSE MUST perfectly match the original banner's character pose. "
-                "2. Explicitly command the AI to use 'Korean text (Hangul typography)' for any text placeholders. "
-                "3. Create 3 distinct aesthetic patterns: "
-                "Pattern 1: Simple UI Wireframe Blueprint. "
-                "Pattern 2: Flat Minimalist Vector. "
-                "Pattern 3: Rough Pencil Storyboard Sketch. "
-                "Output format: Add a Korean title like '[패턴 1: 심플 와이어프레임]' followed by the pure English prompt on the next line. Separate each pattern with an empty line. Do not use markdown code blocks."
-            )
+            prompt_query = f"""
+            앞서 분석한 내용을 바탕으로, **각 TOP 배너별 개선 가이드라인이 반영된 러프 스케치 프롬프트**를 배너 개수만큼 각각 작성해줘.
             
-            with st.spinner("3가지 패턴의 프롬프트 추출 중..."):
+            [필수 규칙]
+            1. 프롬프트는 1:1 비율(1:1 ratio)의 영문 프롬프트 딱 한 줄로 작성할 것.
+            2. 원본 배너 인물의 포즈(POSE)를 그대로 유지하라고 반드시 명시할 것.
+            3. 텍스트 요소에는 'Korean text (Hangul typography)'를 적용하라고 명시할 것.
+            4. 각 배너별 피드백(구도, 텍스트 위치, 색감 등)을 프롬프트에 정확히 반영할 것.
+            
+            [출력 포맷]
+            사용자가 쉽게 복사할 수 있도록 반드시 아래 마크다운 형식(코드 블록)으로만 출력해:
+            
+            ### [배너명] 개선 프롬프트
+            ```text
+            (여기에 영문 프롬프트 1줄 작성)
+            ```
+            """
+            
+            with st.spinner("배너별 맞춤형 프롬프트 추출 중..."):
                 gen_prompt_res = client.models.generate_content(model='gemini-2.5-flash', contents=prompt_query)
-                clean_ai_prompt = gen_prompt_res.text.strip().replace("`", "")
                 
-                st.text_area("▼ 1:1 러프 프롬프트 3종 (원하는 패턴을 복사하세요)", value=clean_ai_prompt, height=250)
+                # 마크다운 렌더링을 통해 코드 블록의 자동 복사 버튼 활성화
+                st.markdown(gen_prompt_res.text)
     else:
         st.error("CSV 내에서 이미지를 가져오지 못했습니다.")
