@@ -6,22 +6,56 @@ from io import BytesIO
 from PIL import Image
 from google import genai
 
-st.set_page_config(layout="wide")
-st.title("🎯 AI 광고 배너 크리에이티브 분석 보드 (V6)")
+st.set_page_config(layout="wide", initial_sidebar_state="expanded")
 
 # ==========================================
-# 0. 세션 상태(메모리) 초기화 - 전체 로딩 방지용
+# 0. 다크모드 및 UI 커스텀 CSS (요구사항 2, 3 반영)
+# ==========================================
+dark_mode = st.sidebar.toggle("🌙 다크 모드 (Dark Mode)", value=False)
+
+# 프롬프트 결과창을 시각적으로 완전히 분리하는 커스텀 CSS
+custom_css = """
+<style>
+    /* 프롬프트 결과 박스 스타일 (시인성 강화) */
+    .prompt-box {
+        background-color: #2b303b;
+        color: #a3be8c;
+        padding: 20px;
+        border-radius: 8px;
+        border-left: 5px solid #ebcb8b;
+        font-family: 'Courier New', monospace;
+        font-size: 14px;
+        line-height: 1.6;
+        margin-top: 15px;
+        margin-bottom: 15px;
+        white-space: pre-wrap;
+    }
+</style>
+"""
+
+if dark_mode:
+    custom_css += """
+    <style>
+        /* 전체 다크모드 강제 적용 */
+        .stApp { background-color: #121212; color: #E0E0E0; }
+        .stMarkdown, .stText, h1, h2, h3, h4, p, label { color: #E0E0E0 !important; }
+        .stTextArea textarea, .stTextInput input, .stSelectbox div[data-baseweb="select"] { 
+            background-color: #2A2A2A !important; color: white !important; 
+        }
+    </style>
+    """
+
+st.markdown(custom_css, unsafe_allow_html=True)
+st.title("🎯 AI 광고 배너 크리에이티브 분석 보드 (V7)")
+
+# ==========================================
+# 1. 사이드바 설정 및 메모리 초기화
 # ==========================================
 if "feedbacks" not in st.session_state:
     st.session_state.feedbacks = []
-if "prompts" not in st.session_state:
-    st.session_state.prompts = {}
 if "analysis_done" not in st.session_state:
     st.session_state.analysis_done = False
 
-# ==========================================
-# 1. 사이드바 설정
-# ==========================================
 st.sidebar.header("🔑 인증 및 기본 설정")
 api_key = st.sidebar.text_input("Gemini API Key를 입력하세요", type="password")
 
@@ -50,14 +84,25 @@ if analysis_direction == "완전히 새로운 시도":
 additional_context = st.sidebar.text_area("🤖 추가 강조 지시사항 (선택)", placeholder="예: 이번엔 카피를 최대한 줄여줘.")
 
 # ==========================================
-# 2. 데이터 처리 및 상위 배너 추출
+# 2. 데이터 처리 및 상위 배너 추출 (요구사항 4 반영)
 # ==========================================
 uploaded_file = st.file_uploader("BI 보드 CSV 파일을 업로드하세요", type=["csv"])
 
 if uploaded_file and api_key:
     client = genai.Client(api_key=api_key)
-    df = pd.read_csv(uploaded_file)
+    raw_df = pd.read_csv(uploaded_file)
     
+    # [요구사항 4] 완전히 같은 디자인(url)이되, 해외(language)는 다르게 분리하여 그룹화
+    group_cols = ['url', 'language'] if 'language' in raw_df.columns else ['url']
+    
+    # 중복 이미지 합산 (CV는 더하고, ROAS는 평균)
+    df = raw_df.groupby(group_cols, as_index=False).agg({
+        'first_pay_cv': 'sum',
+        'roas': 'mean',
+        'name': 'first'
+    })
+    
+    # 첫결제 기준 내림차순 정렬
     df_sorted = df.sort_values(by=['first_pay_cv', 'roas'], ascending=[False, False]).reset_index(drop=True)
     top_n = min(4, len(df_sorted))
     top_banners = df_sorted.head(top_n)
@@ -70,7 +115,7 @@ if uploaded_file and api_key:
         except:
             return None
 
-    st.subheader(f"🏆 성과 최상위 TOP {top_n} 배너 (첫결제 건수 우선)")
+    st.subheader(f"🏆 성과 최상위 TOP {top_n} 배너 (중복 디자인 합산 / 첫결제 건수 우선)")
     cols = st.columns(top_n)
     valid_imgs = []
     
@@ -81,42 +126,37 @@ if uploaded_file and api_key:
                 if img:
                     st.image(img, use_container_width=True)
                     valid_imgs.append(img)
-                st.caption(f"**TOP {i+1}** | 첫결제: {row.first_pay_cv} | ROAS: {row.roas}")
+                # 언어/국가 표시 추가
+                lang_str = f" | 국가: {row.language}" if 'language' in df.columns else ""
+                st.caption(f"**TOP {i+1}**{lang_str}\n\nCV 합계: {row.first_pay_cv} | ROAS: {row.roas:.2f}")
 
     if valid_imgs:
-        banner_data_summary = "\n".join([f"- TOP {idx+1}: 첫결제 {row.first_pay_cv}건, ROAS {row.roas}" for idx, row in enumerate(top_banners.itertuples())])
+        banner_data_summary = "\n".join([f"- TOP {idx+1}: CV {row.first_pay_cv}건, ROAS {row.roas:.2f} (언어: {row.language if 'language' in df.columns else '알수없음'})" for idx, row in enumerate(top_banners.itertuples())])
         
         # ==========================================
-        # 3. [개선] 분석 실행 버튼 (설정 변경 시에만 누르기)
+        # 3. 분석 실행 버튼 (요구사항 5, 6, 7 반영)
         # ==========================================
         st.markdown("---")
         if st.button("🚀 AI 피드백 분석 실행 (설정이 바뀌면 다시 누르세요)", use_container_width=True):
-            if analysis_direction == "BI보드 데이터 기반":
-                direction_prompt = """
-                [BI보드 데이터 기반 분석 지침]
-                - 상위 배너들의 시각적 공통점과 핵심 성공 인자를 명확히 짚어낼 것.
-                - "가독성을 높이세요" 같은 당연한 말은 제외하고 '왜 이런 수정을 해야하는지' 구체적이고 실질적인 가이드를 제공할 것.
-                - 기존 카피를 퍼포먼스 마케팅 시점에 맞춰 더 강렬하게 리라이팅하고, 강조할 폰트 스타일과 크기를 구체적으로 지적할 것.
-                """
-            else:
-                direction_prompt = f"""
-                [완전히 새로운 시도 분석 지침]
-                - 과거 데이터에 얽매이지 말고, 제공된 키워드({specific_hint if specific_hint else '최신 유행 밈, 타사 벤치마킹 스타일, 계절/명절 이벤트'})를 활용해 파격적인 기획을 제안할 것.
-                """
-
+            
             system_prompt = f"""
             너는 퍼포먼스 마케팅 크리에이티브 디렉터다. 첨부된 상위 배너들을 분석하고 짧고 명확한 개조식으로 피드백해라.
             
             [환경 설정]
             - IP 특징: {ip_style}
+            - 피드백 방향성: {analysis_direction}
+            - 타겟 밈/시즌: {specific_hint}
             - 데이터 요약: {banner_data_summary}
             - 추가 지시사항: {additional_context}
             
-            [출력 포맷 필수 규칙 - 시스템 파싱용]
+            [✨ 피드백 필수 작성 규칙 (매우 중요)]
+            1. [배경 상세 묘사]: 새 배너에 적용할 배경을 아주 구체적으로 제안해라. (예: 단순히 '밝은 배경'이 아니라 '네온 핑크빛 광원이 들어간 사이버펑크 질감의 어두운 배경')
+            2. [텍스트 스타일링]: 텍스트를 넣을 경우, 어떤 폰트(고딕, 명조, 캘리그라피 등), 어떤 색상, 어떤 이펙트(테두리, 드롭섀도우, 발광 효과 등)를 쓸지 명확히 제시해라.
+            3. [해외 소재 대응]: 만약 분석하는 배너가 한국(ko) 외의 해외 소재(언어)라면, 언어적 카피(텍스트) 분석은 최소화하고 '시각적 디자인(그래픽, 오브젝트 배치, 색감, 이펙트)' 위주로 피드백을 작성해라.
+            
+            [출력 포맷 필수 규칙]
             반드시 각 배너의 피드백 시작 부분에 '===TOP 1===', '===TOP 2===' 와 같이 명확한 구분자를 넣어서 출력해라. 
             서론이나 결론 없이 바로 구분자로 시작해라.
-            
-            {direction_prompt}
             """
             
             with st.spinner("배너 크리에이티브를 정밀 분석 중..."):
@@ -129,57 +169,49 @@ if uploaded_file and api_key:
                     raw_text = response.text
                     feedbacks_split = re.split(r'===TOP \d+===', raw_text)
                     st.session_state.feedbacks = [f.strip() for f in feedbacks_split if f.strip()]
-                    st.session_state.prompts = {} # 분석이 새로 돌면 프롬프트 초기화
                     st.session_state.analysis_done = True
                 except Exception as e:
                     st.error(f"분석 중 오류 발생: {e}")
 
         # ==========================================
-        # 4. 분석 결과 출력 및 비동기(개별) 프롬프트 생성
+        # 4. 분석 결과 출력 및 부분 렌더링(Fragment) 적용
         # ==========================================
         if st.session_state.analysis_done:
             st.markdown("---")
-            st.subheader(f"🤖 배너별 상세 피드백 및 시안 프롬프트")
+            st.subheader("🤖 배너별 상세 피드백 및 시안 프롬프트")
             
+            # [요구사항 1] st.fragment를 사용하여 이 함수 내의 버튼 클릭 시 화면 전체가 불투명해지는 것을 막음
+            @st.fragment
+            def prompt_generator_fragment(i, feedback, valid_img):
+                if st.button(f"🎨 TOP {i+1} 맞춤 러프 프롬프트 생성", key=f"btn_prompt_{i}"):
+                    prompt_query = f"""
+                    [핵심 지시사항]
+                    1. 첨부된 원본 배너 이미지를 관찰하여 캐릭터의 외형(머리색, 옷, 포즈)을 상세히 영어로 묘사해라.
+                    2. 아래 [피드백 내용]에서 지시한 구도, 배경, 텍스트 스타일을 결합하여 완벽한 '이미지 생성형 AI 프롬프트'를 작성해라.
+                    [피드백 내용]: {feedback}
+                    [규칙]: 1:1 ratio. 텍스트 영역은 'Korean text typography' 명시. 부가 설명 없이 프롬프트만 출력.
+                    """
+                    
+                    with st.spinner("프롬프트 추출 중... (다른 피드백을 읽으셔도 됩니다)"):
+                        try:
+                            gen_prompt_res = client.models.generate_content(
+                                model='gemini-2.5-flash', 
+                                contents=[valid_img, prompt_query]
+                            )
+                            # [요구사항 2] 커스텀 CSS를 적용한 세련된 결과 박스 렌더링
+                            st.markdown(f'<div class="prompt-box">{gen_prompt_res.text}</div>', unsafe_allow_html=True)
+                        except Exception as e:
+                            st.error(f"프롬프트 생성 중 오류 발생: {e}")
+
+            # 피드백 리스트 출력 및 fragment 함수 호출
             for i, feedback in enumerate(st.session_state.feedbacks):
                 st.markdown(f"### 🥇 TOP {i+1} 개선 가이드")
                 st.markdown(feedback)
                 
-                # 프롬프트 생성 영역 컨테이너화 (개별 로딩을 위해)
-                prompt_container = st.container()
-                with prompt_container:
-                    if i not in st.session_state.prompts:
-                        if st.button(f"🎨 TOP {i+1} 맞춤 러프 프롬프트 생성", key=f"btn_prompt_{i}"):
-                            
-                            # [핵심] 텍스트 길이 제한 해제 및 원본 이미지 재참조 지시
-                            prompt_query = f"""
-                            [핵심 지시사항]
-                            1. 첨부된 원본 배너 이미지를 다시 한 번 깊게 관찰해라. 이미지 속 '캐릭터의 외형(머리색, 헤어스타일, 눈매, 의상 디테일)'과 '자세(포즈, 시선 방향, 손동작, 표정)'를 영어로 아주 상세하고 길게 묘사해라.
-                            2. 그 상세 묘사를 바탕으로, 아래 [피드백 내용]에서 지시한 구도/배경/텍스트 변경사항을 결합하여 완벽한 '이미지 생성형 AI 프롬프트'를 작성해라.
-                            
-                            [피드백 내용]
-                            {feedback}
-                            
-                            [프롬프트 작성 규칙]
-                            - 프롬프트 텍스트 길이 제한 없음. 원본 캐릭터와 똑같은 포즈와 느낌이 나오도록 캐릭터 묘사에 가장 많은 문장을 할애할 것.
-                            - 배너 비율은 1:1 ratio.
-                            - 텍스트가 배치될 영역은 'Korean text (Hangul typography)'로 명시할 것.
-                            - 부가 설명 없이 오직 영문 프롬프트만 마크다운 코드 블록(```text ... ```)으로 출력할 것.
-                            """
-                            
-                            with st.spinner(f"TOP {i+1} 원본 캐릭터 분석 및 프롬프트 추출 중... (다른 피드백을 계속 읽으셔도 됩니다)"):
-                                try:
-                                    # [핵심] 프롬프트 생성 시 해당 배너 이미지(valid_imgs[i])를 같이 던져주어 눈으로 보고 묘사하게 만듦
-                                    gen_prompt_res = client.models.generate_content(
-                                        model='gemini-2.5-flash', 
-                                        contents=[valid_imgs[i], prompt_query]
-                                    )
-                                    st.session_state.prompts[i] = gen_prompt_res.text
-                                    st.rerun() # 해당 부분만 갱신
-                                except Exception as e:
-                                    st.error(f"프롬프트 생성 중 오류 발생: {e}")
-                    else:
-                        st.markdown(st.session_state.prompts[i])
+                # 버튼과 프롬프트 생성 과정을 격리된 Fragment로 실행
+                if i < len(valid_imgs):
+                    prompt_generator_fragment(i, feedback, valid_imgs[i])
+                
                 st.markdown("---")
 
     else:
