@@ -8,24 +8,27 @@ from google import genai
 
 st.set_page_config(layout="wide", initial_sidebar_state="expanded")
 
-# 0. 다크모드 및 UI 커스텀 CSS 부분의 custom_css를 아래와 같이 수정하세요.
+# ==========================================
+# 0. 다크모드 및 UI 커스텀 CSS
+# ==========================================
+dark_mode = st.sidebar.toggle("🌙 다크 모드 (Dark Mode)", value=False)
 
+# ★주의: 마크다운 텍스트로 인식되지 않도록 <style> 태그를 왼쪽 끝으로 밀착시켰습니다.
 custom_css = """
 <style>
-/* 프롬프트 결과 박스 스타일 (시인성 강화 + 기본 복사 버튼 호환) */
-[data-testid="stCodeBlock"] {
-    background-color: #2b303b !important;
-    border-left: 5px solid #ebcb8b !important;
-    border-radius: 8px !important;
+/* 프롬프트 결과 박스 스타일 (시인성 강화) */
+.prompt-box {
+    background-color: #2b303b;
+    color: #a3be8c;
+    padding: 20px;
+    border-radius: 8px;
+    border-left: 5px solid #ebcb8b;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.6;
     margin-top: 15px;
     margin-bottom: 15px;
-}
-[data-testid="stCodeBlock"] pre {
-    color: #a3be8c !important;
-    font-family: 'Courier New', monospace !important;
-    font-size: 14px !important;
-    line-height: 1.6 !important;
-    white-space: pre-wrap !important;
+    white-space: pre-wrap;
 }
 </style>
 """
