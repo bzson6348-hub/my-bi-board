@@ -109,20 +109,44 @@ if uploaded_file and api_key:
         {direction_prompt}
         """
         
-        # 전체 배너 분석 실행
+       # 전체 배너 분석 실행 (에러 방어 코드 추가)
         with st.spinner("배너 크리에이티브를 정밀 분석 중..."):
-            response = client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=valid_imgs + [system_prompt]
-            )
+            try:
+                response = client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=valid_imgs + [system_prompt]
+                )
+                
+                # 정규표현식으로 ===TOP N=== 기준으로 텍스트 분리
+                raw_text = response.text
+                feedbacks = re.split(r'===TOP \d+===', raw_text)
+                feedbacks = [f.strip() for f in feedbacks if f.strip()] # 빈 공백 필터링
+                
+                st.markdown("---")
+                st.subheader(f"🤖 배너별 상세 피드백 및 시안 프롬프트 ({analysis_direction})")
+                
+                # ==========================================
+                # 4. 피드백 렌더링 및 개별 프롬프트 생성 버튼
+                # ==========================================
+                for i, feedback in enumerate(feedbacks):
+                    st.markdown(f"### 🥇 TOP {i+1} 개선 가이드")
+                    st.markdown(feedback)
+                    
+                    if st.button(f"🎨 TOP {i+1} 시안 러프 프롬프트 생성", key=f"btn_prompt_{i}"):
+                        prompt_query = f"""
+                        다음 피드백 내용을 토대로, 이 배너의 개선 시안을 시각화할 수 있는 '광고 배너 레이아웃 스케치'용 영문 프롬프트를 작성해.
+                        [피드백 내용]: {feedback}
+                        [규칙]: 1:1 ratio, keeping the character's original pose, Korean text (Hangul typography). 1~2줄 영문 마크다운 코드블록으로만 출력.
+                        """
+                        with st.spinner(f"TOP {i+1} 맞춤형 프롬프트 추출 중..."):
+                            gen_prompt_res = client.models.generate_content(model='gemini-2.5-flash', contents=prompt_query)
+                            st.markdown(gen_prompt_res.text)
+                    st.markdown("---")
             
-            # 정규표현식으로 ===TOP N=== 기준으로 텍스트 분리
-            raw_text = response.text
-            feedbacks = re.split(r'===TOP \d+===', raw_text)
-            feedbacks = [f.strip() for f in feedbacks if f.strip()] # 빈 공백 필터링
-            
-            st.markdown("---")
-            st.subheader(f"🤖 배너별 상세 피드백 및 시안 프롬프트 ({analysis_direction})")
+            except Exception as e:
+                # 스트림릿이 숨긴 진짜 에러 메시지를 화면에 강제로 출력
+                st.error(f"API 요청 중 문제가 발생했습니다. (진짜 원인: {e})")
+                st.warning("💡 팁: 'Quota exceeded' 등의 단어가 보인다면 1~2분 정도 기다렸다가 다시 시도해 보세요. (무료 API 단기 호출 제한)")
             
             # ==========================================
             # 4. 피드백 렌더링 및 개별 프롬프트 생성 버튼
