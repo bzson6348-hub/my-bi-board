@@ -9,7 +9,7 @@ from google import genai
 st.set_page_config(layout="wide", initial_sidebar_state="expanded")
 
 # ==========================================
-# 0. 다크모드 및 UI 커스텀 CSS (요구사항 2, 3 반영)
+# 0. 다크모드 및 UI 커스텀 CSS
 # ==========================================
 dark_mode = st.sidebar.toggle("🌙 다크 모드 (Dark Mode)", value=False)
 
@@ -36,16 +36,29 @@ custom_css = """
 if dark_mode:
     custom_css += """
     <style>
-        /* 전체 다크모드 강제 적용 */
-        .stApp { background-color: #121212; color: #E0E0E0; }
-        .stMarkdown, .stText, h1, h2, h3, h4, p, label { color: #E0E0E0 !important; }
-        .stTextArea textarea, .stTextInput input, .stSelectbox div[data-baseweb="select"] { 
-            background-color: #2A2A2A !important; color: white !important; 
+        /* 제미나이 스타일의 완전 어두운 다크모드 강제 적용 */
+        [data-testid="stAppViewContainer"] { background-color: #131314 !important; }
+        [data-testid="stSidebar"] { background-color: #1e1e1f !important; }
+        [data-testid="stHeader"] { background-color: transparent !important; }
+        
+        /* 전체 텍스트 색상 밝게 변경 */
+        .stMarkdown, .stText, h1, h2, h3, h4, h5, h6, p, label, span { color: #E3E3E3 !important; }
+        
+        /* 입력창, 선택창 배경 어둡게 */
+        .stTextArea textarea, .stTextInput input, div[data-baseweb="select"] > div { 
+            background-color: #282a2d !important; 
+            color: #FFFFFF !important; 
+            border-color: #444 !important;
         }
+        
+        /* 파일 업로드 영역 어둡게 */
+        [data-testid="stFileUploadDropzone"] { background-color: #1e1e1f !important; }
     </style>
     """
 
+# ★ 이 부분이 있어야 코드가 화면에 글씨로 출력되지 않습니다 ★
 st.markdown(custom_css, unsafe_allow_html=True)
+
 st.title("🎯 AI 광고 배너 크리에이티브 분석 보드 (V7)")
 
 # ==========================================
