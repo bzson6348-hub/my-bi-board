@@ -42,25 +42,35 @@ if dark_mode:
 [data-testid="stSidebar"] { background-color: #1e1e1f !important; }
 [data-testid="stHeader"] { background-color: transparent !important; }
 
-/* 👁️ 본문 및 일반 텍스트: 눈이 편안한 톤다운된 연회색 적용 */
-.stMarkdown p, .stMarkdown li, .stText, span, label, .stCaption { 
-    color: #B3B3B3 !important; 
+/* 👁️ 본문 텍스트 및 가이드 글자: 눈이 편안한 어두운 연회색 적용 */
+.stMarkdown p, .stMarkdown li, .stText, span, label, .stCaption, li { 
+    color: #999999 !important; 
 }
 
-/* 🏷️ 핵심 대제목 및 중제목: 너무 튀지 않는 차분한 밝은 회색 */
-h1, h2, h3, h4, h5, h6 { 
-    color: #E3E3E3 !important; 
+/* 🏷️ 핵심 대제목 및 중제목: 너무 튀지 않는 차분한 회색 */
+h1, h2, h3, h4, h5, h6, strong { 
+    color: #B5B5B5 !important; 
 }
 
 /* 입력창, 선택창 배경 및 텍스트 밸런스 조정 */
 .stTextArea textarea, .stTextInput input, div[data-baseweb="select"] > div { 
     background-color: #282a2d !important; 
-    color: #CCCCCC !important; 
-    border-color: #444 !important;
+    color: #A6A6A6 !important; 
+    border-color: #3a3a3c !important;
 }
 
-/* 파일 업로드 영역 어둡게 */
-[data-testid="stFileUploadDropzone"] { background-color: #1e1e1f !important; }
+/* 📂 [해결] 파일 업로드 영역 강제 진회색 처리 (내부 텍스트 포함) */
+[data-testid="stFileUploadDropzone"], 
+[data-testid="stFileUploadDropzone"] > div,
+div[role="button"] { 
+    background-color: #222224 !important; 
+    border-color: #444444 !important;
+}
+[data-testid="stFileUploadDropzone"] section,
+[data-testid="stFileUploadDropzone"] p,
+[data-testid="stFileUploadDropzone"] span {
+    color: #8A8A8A !important;
+}
 </style>
 """
 
