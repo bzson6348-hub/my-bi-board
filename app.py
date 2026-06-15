@@ -42,41 +42,24 @@ if dark_mode:
 [data-testid="stSidebar"] { background-color: #1e1e1f !important; }
 [data-testid="stHeader"] { background-color: transparent !important; }
 
-/* 👁️ 본문 텍스트 및 가이드 글자: 눈이 편안한 어두운 연회색 적용 */
-.stMarkdown p, .stMarkdown li, .stText, span, label, .stCaption, li { 
-    color: #999999 !important; 
-}
+/* 전체 텍스트 색상 밝게 변경 */
+.stMarkdown, .stText, h1, h2, h3, h4, h5, h6, p, label, span { color: #E3E3E3 !important; }
 
-/* 🏷️ 핵심 대제목 및 중제목: 너무 튀지 않는 차분한 회색 */
-h1, h2, h3, h4, h5, h6, strong { 
-    color: #B5B5B5 !important; 
-}
-
-/* 입력창, 선택창 배경 및 텍스트 밸런스 조정 */
+/* 입력창, 선택창 배경 어둡게 */
 .stTextArea textarea, .stTextInput input, div[data-baseweb="select"] > div { 
     background-color: #282a2d !important; 
-    color: #A6A6A6 !important; 
-    border-color: #3a3a3c !important;
+    color: #FFFFFF !important; 
+    border-color: #444 !important;
 }
 
-/* 📂 [해결] 파일 업로드 영역 강제 진회색 처리 (내부 텍스트 포함) */
-[data-testid="stFileUploadDropzone"], 
-[data-testid="stFileUploadDropzone"] > div,
-div[role="button"] { 
-    background-color: #222224 !important; 
-    border-color: #444444 !important;
-}
-[data-testid="stFileUploadDropzone"] section,
-[data-testid="stFileUploadDropzone"] p,
-[data-testid="stFileUploadDropzone"] span {
-    color: #8A8A8A !important;
-}
+/* 파일 업로드 영역 어둡게 */
+[data-testid="stFileUploadDropzone"] { background-color: #1e1e1f !important; }
 </style>
 """
 
 st.markdown(custom_css, unsafe_allow_html=True)
 
-st.title("🎯 BI 보드 분석 툴 (V7)")
+st.title("🎯 AI 광고 배너 크리에이티브 분석 보드 (V7)")
 
 # ==========================================
 # 1. 사이드바 설정 및 메모리 초기화
@@ -217,12 +200,13 @@ if uploaded_file and api_key:
                     [규칙]: 1:1 ratio. 텍스트 영역은 'Korean text typography' 명시. 부가 설명 없이 프롬프트만 출력.
                     """
                     
-                    with st.spinner("프롬프트 추출 중..."):
+                    with st.spinner("프롬프트 추출 중... (다른 피드백을 읽으셔도 됩니다)"):
                         try:
                             gen_prompt_res = client.models.generate_content(
                                 model='gemini-2.5-flash', 
                                 contents=[valid_img, prompt_query]
                             )
+                            # st.code를 사용하여 시인성 유지 및 우측 상단 복사 기능 적용
                             st.code(gen_prompt_res.text, language="plaintext")
                         except Exception as e:
                             st.error(f"프롬프트 생성 중 오류 발생: {e}")
