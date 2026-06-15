@@ -42,13 +42,20 @@ if dark_mode:
 [data-testid="stSidebar"] { background-color: #1e1e1f !important; }
 [data-testid="stHeader"] { background-color: transparent !important; }
 
-/* 전체 텍스트 색상 밝게 변경 */
-.stMarkdown, .stText, h1, h2, h3, h4, h5, h6, p, label, span { color: #E3E3E3 !important; }
+/* 👁️ 본문 및 일반 텍스트: 눈이 편안한 톤다운된 연회색 적용 */
+.stMarkdown p, .stMarkdown li, .stText, span, label, .stCaption { 
+    color: #B3B3B3 !important; 
+}
 
-/* 입력창, 선택창 배경 어둡게 */
+/* 🏷️ 핵심 대제목 및 중제목: 너무 튀지 않는 차분한 밝은 회색 */
+h1, h2, h3, h4, h5, h6 { 
+    color: #E3E3E3 !important; 
+}
+
+/* 입력창, 선택창 배경 및 텍스트 밸런스 조정 */
 .stTextArea textarea, .stTextInput input, div[data-baseweb="select"] > div { 
     background-color: #282a2d !important; 
-    color: #FFFFFF !important; 
+    color: #CCCCCC !important; 
     border-color: #444 !important;
 }
 
@@ -206,7 +213,6 @@ if uploaded_file and api_key:
                                 model='gemini-2.5-flash', 
                                 contents=[valid_img, prompt_query]
                             )
-                            # st.code를 사용하여 시인성 유지 및 우측 상단 복사 기능 적용
                             st.code(gen_prompt_res.text, language="plaintext")
                         except Exception as e:
                             st.error(f"프롬프트 생성 중 오류 발생: {e}")
